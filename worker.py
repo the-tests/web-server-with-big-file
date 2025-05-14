@@ -42,8 +42,8 @@ async def update_cache(app: web.Application):
 
         data = loads(raw_data)
         for item in data:
-            if item['categoreis'] is not None:
-                item['categoreis'] = frozenset(item['categoreis'])
+            if item['categories'] is not None:
+                item['categories'] = frozenset(item['categories'])
 
         print(f'Heavy load took {perf_counter() - s} seconds {len(data)}')
 

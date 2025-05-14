@@ -12,7 +12,7 @@ for i in range(50000):
     obj.append(
         {
             "item_id": id_ + '_' + datetime.now().isoformat(),
-            "categoreis": [f'{id_}_{idx}' for idx in range(randint(0, 300))],
+            "categories": [f'{id_}_{idx}' for idx in range(randint(0, 300))],
         }
     )
     if (i + 1) % 10000 == 0:

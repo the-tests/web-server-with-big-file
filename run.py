@@ -29,7 +29,7 @@ async def get_item(r: web.Request) -> web.Response:
                 charset='utf-8',
             )
         item = deepcopy(r.app['THE_CACHE']['items'][num])
-        item['categoreis'] = list(item['categoreis'])
+        item['categories'] = list(item['categories'])
         return web.Response(
             text=dumps(item, indent=2),
             content_type='application/json',

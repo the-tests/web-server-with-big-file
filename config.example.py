@@ -1,0 +1,10 @@
+TIMEOUT = 5.0
+S3_BUCKET = 'bucket-name'
+S3_KEY = 'big_data.json'
+REGION = 'ap-northeast-1'
+AWS_KEY = 'blahblah'
+AWS_SECRET = 'blahblah'
+ENDPOINT_URL = 'http://172.25.25.128:5003'
+PORT = 7777
+HOST = '0.0.0.0'
+CHUNK_SIZE = 20

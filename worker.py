@@ -1,9 +1,8 @@
-import aioboto3
+import boto3
 
 from time import perf_counter
 from json import loads
 
-from asyncio import new_event_loop
 from datetime import datetime
 from multiprocessing import Queue
 
@@ -13,39 +12,34 @@ from aiohttp import web
 
 import config as cfg
 
-async def update_cache(app: web.Application):
 
-    def __blocking_background_task(q: Queue):
+def start_download_in_background(q: Queue, key: str) -> None:
 
-        async def __do_async_stuff():
-            async with aioboto3.Session().client(
-                's3',
-                region_name=cfg.REGION,
-                aws_access_key_id=cfg.AWS_KEY,
-                aws_secret_access_key=cfg.AWS_SECRET,
-                endpoint_url=cfg.ENDPOINT_URL,
-            ) as client:
-                async with (
-                    await client.get_object(
-                        Bucket=cfg.S3_BUCKET,
-                        Key=cfg.S3_KEY,
-                    )
-                )['Body'] as stream:
-                    return await stream.read()
-
-        print('Heavy load started at', datetime.now().isoformat())
+    def __target(q: Queue, key: str) -> None:
+        print(f'Downloading of {key} started at', datetime.now().isoformat())
         s = perf_counter()
+        raw_data = boto3.client(
+            's3',
+            region_name=cfg.REGION,
+            aws_access_key_id=cfg.AWS_KEY,
+            aws_secret_access_key=cfg.AWS_SECRET,
+            endpoint_url=cfg.ENDPOINT_URL,
+        ).get_object(
+            Bucket=cfg.S3_BUCKET,
+            Key=key,
+        )['Body'].read()
 
-        loop = new_event_loop()
-        raw_data = loop.run_until_complete(__do_async_stuff())
-        print(f'Heavy load async request took {perf_counter() - s} seconds')
+        print(f'Downloading of {key} took {perf_counter() - s} seconds')
 
+        s = perf_counter()
         data = loads(raw_data)
         for item in data:
             if item['categories'] is not None:
                 item['categories'] = frozenset(item['categories'])
 
-        print(f'Heavy load took {perf_counter() - s} seconds {len(data)}')
+        print(
+            f'Data conversion for {key} took {perf_counter() - s} seconds {len(data)}'
+        )
 
         chunk_num = 0
         while len(data) > cfg.CHUNK_SIZE * chunk_num:
@@ -54,25 +48,42 @@ async def update_cache(app: web.Application):
         q.put(None)
         print(f'Queue size: {q.qsize()}')
 
+    Process(target=__target, args=(q, key)).start()
+    print('Download function started')
+
+
+async def update_items(cache: dict, key: str) -> None:
+    '''
+    Warning: cache will be modified in place
+    '''
+    items = []
+    q = Queue()
+    start_download_in_background(q, key)
+    while True:
+        if q.empty():
+            await sleep(0.1)
+            continue
+        items_chunk = q.get()
+        if items_chunk is None:
+            print('Items length:', len(items))
+            break
+        items += items_chunk
+        await sleep(0.0001)
+    q.close()
+    cache[key] = items
+    print('Copy to cache is completed')
+
+
+async def update_cache(app: web.Application):
     async def __task(app):
         while True:
-            items = []
-            q = Queue()
-            Process(target=__blocking_background_task, args=(q,)).start()
-            print('Blocking function started')
-            while True:
-                if q.empty():
-                    await sleep(0)
-                    continue
-                item = q.get()
-                if item is None:
-                    print('Items length:', len(items))
-                    break
-                items += item
-                await sleep(0)
-            q.close()
-            app['THE_CACHE']['update_date'] = datetime.now().isoformat()
-            app['THE_CACHE']['items'] = items
+            if len(app['THE_CACHE']['keys_to_update']) == 0:
+                print('No keys to update')
+            else:
+                # use slice to avoid modifying the list while iterating
+                for key in tuple(app['THE_CACHE']['keys_to_update']):
+                    await update_items(app['THE_CACHE']['data'], key)
+                app['THE_CACHE']['update_date'] = datetime.now().isoformat()    
             await sleep(cfg.TIMEOUT)
 
     create_task(__task(app))

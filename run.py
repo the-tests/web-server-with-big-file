@@ -93,16 +93,16 @@ async def remove(r: web.Request) -> web.Response:
             content_type='text/html',
             charset='utf-8',
         )
-    try:
-        async with r.app['THE_CACHE']['locks'].setdefault(key, Lock()):
+    async with r.app['THE_CACHE']['locks'].setdefault(key, Lock()):
+        try:
             if key in r.app['THE_CACHE']['data']:
                 del r.app['THE_CACHE']['data'][key]
             if key in r.app['THE_CACHE']['keys_to_update']:
                 r.app['THE_CACHE']['keys_to_update'].remove(key)
-    finally:
-        if key in r.app['THE_CACHE']['locks']:
-            print('  [remove] -> removing lock')
-            del r.app['THE_CACHE']['locks'][key]
+        finally:
+            if key in r.app['THE_CACHE']['locks']:
+                print('  [remove] -> removing lock')
+                del r.app['THE_CACHE']['locks'][key]
 
     return web.Response(status=204)
 
